@@ -19,7 +19,6 @@ func startServer(ca ca.CA, ip string, port int, root string) error {
 		ClientCAs:  caPool,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 	}
-	tlsConfig.BuildNameToCertificate()
 
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	server := &http.Server{

@@ -175,11 +175,11 @@ func (ca *CA) makeCACert() error {
 	}
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &ca.caKey.PublicKey, ca.caKey)
 	if err != nil {
-		return fmt.Errorf("Could not create CA certificate: %w", err)
+		return fmt.Errorf("could not create CA certificate: %w", err)
 	}
 	ca.caCrt, err = x509.ParseCertificate(crtBytes)
 	if err != nil {
-		return fmt.Errorf("Could not parse new CA certificate: %w", err)
+		return fmt.Errorf("could not parse new CA certificate: %w", err)
 	}
 
 	err = pem.Encode(file, &pem.Block{
@@ -187,7 +187,7 @@ func (ca *CA) makeCACert() error {
 		Bytes: crtBytes,
 	})
 	if err != nil {
-		return fmt.Errorf("Could not save CA certificate: %w", err)
+		return fmt.Errorf("could not save CA certificate: %w", err)
 	}
 	return nil
 }
