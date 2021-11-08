@@ -1,6 +1,7 @@
 package ca
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -19,10 +20,11 @@ import (
 )
 
 const (
-	caCN                      = "debug-mtls"
-	caKeyBits                 = 2048
-	certificatePEMBlockType   = "CERTIFICATE"
-	rsaPrivateKeyPEMBlockType = "RSA PRIVATE KEY"
+	caCN                        = "debug-mtls"
+	rsaKeyBits                  = 2048
+	certificatePEMBlockType     = "CERTIFICATE"
+	rsaPrivateKeyPEMBlockType   = "RSA PRIVATE KEY"
+	ecdsaPrivateKeyPEMBlockType = "EC PRIVATE KEY"
 )
 
 const (
@@ -31,18 +33,38 @@ const (
 	cliCertSerial
 )
 
+const (
+	ecdsaMode = iota
+	rsaMode
+)
+
 type CA struct {
-	root   string
-	caCrt  *x509.Certificate
-	caKey  *rsa.PrivateKey
-	srvCrt *x509.Certificate
-	srvKey *rsa.PrivateKey
-	cliCrt *x509.Certificate
-	cliKey *rsa.PrivateKey
+	root string
+	mode int
+
+	caCrt       *x509.Certificate
+	caRSAKey    *rsa.PrivateKey
+	caECDSAKey  *ecdsa.PrivateKey
+	srvCrt      *x509.Certificate
+	srvRSAKey   *rsa.PrivateKey
+	srvECDSAKey *ecdsa.PrivateKey
+	cliCrt      *x509.Certificate
+	cliRSAKey   *rsa.PrivateKey
+	cliECDSAKey *ecdsa.PrivateKey
 }
 
-func NewCA(root string) CA {
+func LoadCA(root string) CA {
 	return CA{root: root}
+}
+
+func NewCA(root string, ecdsa bool) CA {
+	ca := CA{root: root}
+	if ecdsa {
+		ca.mode = ecdsaMode
+	} else {
+		ca.mode = rsaMode
+	}
+	return ca
 }
 
 func (ca *CA) CACertPath() string {
@@ -137,7 +159,11 @@ func (ca *CA) makeCADir() error {
 
 func (ca *CA) makeCAKey() error {
 	var err error
-	ca.caKey, err = makeRSAKey(ca.caKeyPath())
+	if ca.mode == ecdsaMode {
+		ca.caECDSAKey, err = makeECDSAKey(ca.caKeyPath())
+	} else {
+		ca.caRSAKey, err = makeRSAKey(ca.caKeyPath())
+	}
 	return err
 }
 
@@ -173,7 +199,12 @@ func (ca *CA) makeCACert() error {
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 	}
-	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &ca.caKey.PublicKey, ca.caKey)
+	var crtBytes []byte
+	if ca.mode == ecdsaMode {
+		crtBytes, err = x509.CreateCertificate(rand.Reader, tmpl, tmpl, &ca.caECDSAKey.PublicKey, ca.caECDSAKey)
+	} else {
+		crtBytes, err = x509.CreateCertificate(rand.Reader, tmpl, tmpl, &ca.caRSAKey.PublicKey, ca.caRSAKey)
+	}
 	if err != nil {
 		return fmt.Errorf("could not create CA certificate: %w", err)
 	}
@@ -194,20 +225,29 @@ func (ca *CA) makeCACert() error {
 
 func (ca *CA) makeServerKey() error {
 	var err error
-	ca.srvKey, err = makeRSAKey(ca.ServerKeyPath())
+	if ca.mode == ecdsaMode {
+		ca.srvECDSAKey, err = makeECDSAKey(ca.ServerKeyPath())
+	} else {
+		ca.srvRSAKey, err = makeRSAKey(ca.ServerKeyPath())
+	}
 	return err
 }
 
 func (ca *CA) makeServerCert(name string) error {
 	o := certOp{
-		ca.ServerCertPath(),
-		name,
-		srvCertSerial,
-		x509.KeyUsageDigitalSignature,
-		[]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		ca.srvKey,
-		ca.caCrt,
-		ca.caKey,
+		path:   ca.ServerCertPath(),
+		name:   name,
+		serial: srvCertSerial,
+		ku:     x509.KeyUsageDigitalSignature,
+		eku:    []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		caCrt:  ca.caCrt,
+	}
+	if ca.mode == ecdsaMode {
+		o.key = ca.srvECDSAKey
+		o.caKey = ca.caECDSAKey
+	} else {
+		o.key = ca.srvRSAKey
+		o.caKey = ca.caRSAKey
 	}
 	var err error
 	ca.srvCrt, err = makeCert(o)
@@ -216,20 +256,29 @@ func (ca *CA) makeServerCert(name string) error {
 
 func (ca *CA) makeClientKey() error {
 	var err error
-	ca.cliKey, err = makeRSAKey(ca.clientKeyPath())
+	if ca.mode == ecdsaMode {
+		ca.cliECDSAKey, err = makeECDSAKey(ca.clientKeyPath())
+	} else {
+		ca.cliRSAKey, err = makeRSAKey(ca.clientKeyPath())
+	}
 	return err
 }
 
 func (ca *CA) makeClientCert(name string) error {
 	o := certOp{
-		ca.clientCertPath(),
-		name,
-		cliCertSerial,
-		x509.KeyUsageDigitalSignature,
-		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		ca.cliKey,
-		ca.caCrt,
-		ca.caKey,
+		path:   ca.clientCertPath(),
+		name:   name,
+		serial: cliCertSerial,
+		ku:     x509.KeyUsageDigitalSignature,
+		eku:    []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		caCrt:  ca.caCrt,
+	}
+	if ca.mode == ecdsaMode {
+		o.key = ca.cliECDSAKey
+		o.caKey = ca.caECDSAKey
+	} else {
+		o.key = ca.cliRSAKey
+		o.caKey = ca.caRSAKey
 	}
 	var err error
 	ca.cliCrt, err = makeCert(o)
@@ -243,7 +292,14 @@ func (ca *CA) ClientMobileconfigPath() string {
 func (ca *CA) exportClientMobileconfig() error {
 	p := ca.ClientMobileconfigPath()
 	log.Printf("Export client mobileconfig %s", p)
-	profile, err := newProfile(ca.caCrt, ca.cliCrt, ca.cliKey)
+
+	var profile profile
+	var err error
+	if ca.mode == ecdsaMode {
+		profile, err = newProfile(ca.caCrt, ca.cliCrt, ca.cliECDSAKey)
+	} else {
+		profile, err = newProfile(ca.caCrt, ca.cliCrt, ca.cliRSAKey)
+	}
 	if err != nil {
 		return fmt.Errorf("could not export client mobileconfig: %w", err)
 	}

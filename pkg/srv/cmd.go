@@ -18,7 +18,7 @@ func ServeCmd() {
 
 	fs.Parse(os.Args[2:])
 
-	ca := ca.NewCA(*fsCAPath)
+	ca := ca.LoadCA(*fsCAPath)
 	srvName, err := ca.ServerName()
 	if err != nil {
 		log.Fatal(err)

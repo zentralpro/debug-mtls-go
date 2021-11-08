@@ -2,7 +2,6 @@ package ca
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 
 	"github.com/google/uuid"
@@ -49,7 +48,7 @@ type securityPkcs12Payload struct {
 	PayloadContent     []byte
 }
 
-func newSecurityPkcs12Payload(c *x509.Certificate, k *rsa.PrivateKey) (securityPkcs12Payload, error) {
+func newSecurityPkcs12Payload(c *x509.Certificate, k interface{}) (securityPkcs12Payload, error) {
 	pwd := uuid.New().String()
 	pc, err := pkcs12.Encode(rand.Reader, k, c, []*x509.Certificate{}, pwd)
 	if err != nil {
@@ -70,7 +69,7 @@ func newSecurityPkcs12Payload(c *x509.Certificate, k *rsa.PrivateKey) (securityP
 	}, nil
 }
 
-func newProfile(caCrt *x509.Certificate, cliCrt *x509.Certificate, cliKey *rsa.PrivateKey) (profile, error) {
+func newProfile(caCrt *x509.Certificate, cliCrt *x509.Certificate, cliKey interface{}) (profile, error) {
 	p := profile{
 		common: common{
 			PayloadType:        "Configuration",
