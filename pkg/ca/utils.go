@@ -165,7 +165,7 @@ func makeCert(op certOp) (*x509.Certificate, error) {
 		}
 		pubBytes = spki.SubjectPublicKey.Bytes
 	} else {
-		return nil, errors.New("Unsupported private key type")
+		return nil, errors.New("unsupported private key type")
 	}
 	hash := sha256.Sum256(pubBytes)
 	subjKeyId := hash[:20]
