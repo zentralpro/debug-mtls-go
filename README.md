@@ -26,6 +26,8 @@ A directory with all the certificates and keys will be created at `/path/to/the/
 
 If you omit the options, default values will be used.
 
+If the `--ecdsa` flag is set, elliptic curve keys will be used.
+
 ## 2 - Serve some files
 
 ```bash
